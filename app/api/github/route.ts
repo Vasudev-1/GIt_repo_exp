@@ -4,6 +4,16 @@ import type { CachedData, GithubApiRepo, LanguageStats } from '@/types/github';
 const cache = new Map<string, { data: CachedData; timestamp: number }>();
 const CACHE_TTL = 60 * 1000;
 
+// Memory Management: Sweep stale cache entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of cache.entries()) {
+    if (now - value.timestamp >= CACHE_TTL) {
+      cache.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const username = searchParams.get('username')?.trim()?.toLowerCase();
@@ -14,8 +24,11 @@ export async function GET(request: Request) {
 
   const cached = cache.get(username);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log(`⚡ Cache HIT: Serving stored data for @${username}`);
     return NextResponse.json({ ...cached.data, cached: true });
   }
+
+  console.log(`☁️ API FETCH: Requesting fresh data for @${username}`);
 
   const headers: HeadersInit = process.env.GITHUB_TOKEN 
     ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } 
@@ -30,6 +43,7 @@ export async function GET(request: Request) {
     ]);
     
     if (profileRes.status === 403 && profileRes.headers.get('x-ratelimit-remaining') === '0') {
+      console.warn(`⚠️ Rate limit exceeded for @${username}`);
       return NextResponse.json({ error: 'GitHub API rate limit exceeded.' }, { status: 429 });
     }
 
@@ -86,6 +100,7 @@ export async function GET(request: Request) {
 
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal Server Error';
+    console.error(`❌ Fetch Error for @${username}:`, message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -19,12 +19,18 @@ export default function GithubSearch() {
   const [sortBy, setSortBy] = useState<SortOption>('updated');
   const [visibleCount, setVisibleCount] = useState(6);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
-  // Init theme
+  // Init theme & history
   useEffect(() => {
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       setIsDarkMode(true);
       document.documentElement.classList.add('dark');
+    }
+    
+    const savedHistory = localStorage.getItem('github-recent-searches');
+    if (savedHistory) {
+      try { setRecentSearches(JSON.parse(savedHistory)); } catch (e) {}
     }
   }, []);
 
@@ -72,6 +78,25 @@ export default function GithubSearch() {
       setLoading(false);
     }
   };
+
+  // Smart history save (1.5s reading timer)
+  useEffect(() => {
+    const viewedUser = data?.profile?.login;
+    if (!viewedUser) return;
+
+    const historyTimer = setTimeout(() => {
+      setRecentSearches(prev => {
+        // Prevent duplicates from moving to the top if already there
+        if (prev[0]?.toLowerCase() === viewedUser.toLowerCase()) return prev;
+        
+        const updated = [viewedUser, ...prev.filter(name => name.toLowerCase() !== viewedUser.toLowerCase())].slice(0, 5);
+        localStorage.setItem('github-recent-searches', JSON.stringify(updated));
+        return updated;
+      });
+    }, 1500); 
+
+    return () => clearTimeout(historyTimer);
+  }, [data?.profile?.login]);
 
   // Sort repos
   const sortedRepos = useMemo(() => {
@@ -147,18 +172,21 @@ export default function GithubSearch() {
             </button>
           </form>
 
-          {/* Suggestions */}
-          <div className="flex flex-wrap justify-center gap-3 mt-6">
-            {['torvalds', 'shadcn', 'leerob'].map(name => (
-              <button 
-                key={name}
-                onClick={() => { setUsername(name); handleSearch(name); }}
-                className="px-4 py-1.5 text-sm font-medium bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
-              >
-                Explore {name}
-              </button>
-            ))}
-          </div>
+          {/* Dynamic Recent History */}
+          {recentSearches.length > 0 && (
+            <div className="flex flex-wrap justify-center items-center gap-3 mt-6 animate-in fade-in duration-500">
+              <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Recent:</span>
+              {recentSearches.map(name => (
+                <button 
+                  key={name}
+                  onClick={() => { setUsername(name); handleSearch(name); }}
+                  className="px-3 py-1 text-sm font-medium bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Error state */}
@@ -205,15 +233,13 @@ export default function GithubSearch() {
                         </Pie>
                         <Tooltip 
                           contentStyle={{ 
-                            backgroundColor: isDarkMode ? '#27272a' : '#ffffff', // zinc-800 instead of pitch black
+                            backgroundColor: isDarkMode ? '#27272a' : '#ffffff', 
                             borderRadius: '12px', 
                             border: isDarkMode ? '1px solid #3f3f46' : '1px solid #e4e4e7',
                             boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
                           }} 
-                          itemStyle={{ 
-                          color: isDarkMode ? '#f4f4f5' : '#18181b', // Force the text to be white/black
-                          fontWeight: 500 
-                          }} />
+                          itemStyle={{ color: isDarkMode ? '#f4f4f5' : '#18181b', fontWeight: 500 }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>

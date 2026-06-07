@@ -10,6 +10,7 @@ type SortOption = 'stars' | 'name' | 'updated';
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function GithubSearch() {
+  // Local state
   const [username, setUsername] = useState('');
   const [data, setData] = useState<GithubResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -19,6 +20,7 @@ export default function GithubSearch() {
   const [expandedRepoId, setExpandedRepoId] = useState<number | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
+  // Load history
   useEffect(() => {
     try {
       const saved = localStorage.getItem('recentGithubSearches');
@@ -28,6 +30,7 @@ export default function GithubSearch() {
     }
   }, []);
 
+  // Save history
   const saveRecentSearch = (search: string) => {
     setRecentSearches(prev => {
       const updated = [search, ...prev.filter(s => s !== search)].slice(0, 5);
@@ -36,6 +39,21 @@ export default function GithubSearch() {
     });
   };
 
+  // Debounce typing
+  useEffect(() => {
+    const cleanName = username.trim();
+    
+    if (!cleanName || cleanName.length < 2) return;
+    if (data?.profile.login.toLowerCase() === cleanName.toLowerCase()) return;
+
+    const timeoutId = setTimeout(() => {
+      handleSearch(cleanName);
+    }, 600); 
+
+    return () => clearTimeout(timeoutId);
+  }, [username]);
+
+  // Fetch API
   const handleSearch = async (targetUsername: string) => {
     const cleanUsername = targetUsername.trim();
     if (!cleanUsername) {
@@ -67,6 +85,7 @@ export default function GithubSearch() {
     }
   };
 
+  // Sort repos
   const sortedRepos = useMemo(() => {
     if (!data?.repos) return [];
     return [...data.repos].sort((a, b) => {
@@ -76,6 +95,7 @@ export default function GithubSearch() {
     });
   }, [data?.repos, sortBy]);
 
+  // Chart data
   const pieData = useMemo(() => {
     if (!data?.languages) return [];
     return Object.entries(data.languages)
@@ -84,9 +104,11 @@ export default function GithubSearch() {
       .slice(0, 6);
   }, [data?.languages]);
 
+  // Render UI
   return (
     <div className="w-full space-y-8">
-      {/* Search Bar Section */}
+      
+      {/* Search Bar */}
       <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
         <form onSubmit={(e) => { e.preventDefault(); handleSearch(username); }} className="relative flex gap-3">
           <div className="relative flex-1">
@@ -129,7 +151,7 @@ export default function GithubSearch() {
         )}
       </div>
 
-      {/* Error State */}
+      {/* Error state */}
       {error && (
         <div className="p-4 bg-red-50 text-red-700 border border-red-100 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
           <svg className="w-5 h-5 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -137,12 +159,13 @@ export default function GithubSearch() {
         </div>
       )}
 
-      {/* Results Section */}
+      {/* Data display */}
       {data && !loading && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Profile Card */}
+            
+            {/* Profile */}
             <div className="lg:col-span-2 p-8 bg-white rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-white rounded-bl-full -z-10"></div>
               
@@ -179,7 +202,7 @@ export default function GithubSearch() {
               )}
             </div>
 
-            {/* Languages Chart Card */}
+            {/* Languages */}
             {pieData.length > 0 && (
               <div className="p-6 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full min-h-[300px]">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Top Languages</h3>
@@ -202,7 +225,7 @@ export default function GithubSearch() {
             )}
           </div>
 
-          {/* Repositories Grid */}
+          {/* Repositories */}
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
